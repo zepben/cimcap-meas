@@ -1,0 +1,43 @@
+{
+    "builders": [
+        {
+            "type": "docker",
+            "image": "amazoncorretto:11",
+            "commit": "true",
+            "changes": [
+                "EXPOSE 8080",
+                "EXPOSE 50051",
+                "ENTRYPOINT [\"java\", \"-jar\", \"/app/cimcap.jar\"]"
+            ]
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "inline": ["mkdir app"]
+        },
+        {
+            "type": "file",
+            "source": "./built-artifacts/",
+            "destination": "/app"
+        }
+    ],
+    "post-processors": [
+        [
+            {
+                "type": "docker-tag",
+                "repository": "mavenrepo.zepben.com:8083/repository/zepben-docker/cimcap-meas",
+                "tag": "1.0.0"
+            },
+            "docker-push"
+        ],
+        [
+            {
+                "type": "docker-tag",
+                "repository": "mavenrepo.zepben.com:8083/repository/zepben-docker/cimcap-meas",
+                "tag": "latest"
+            },
+            "docker-push"
+        ]
+    ]
+ }
