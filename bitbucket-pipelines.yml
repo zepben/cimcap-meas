@@ -29,6 +29,22 @@ definitions:
           - curl -o ~/lc/licence-checker -L https://$BB_AUTH_STRING@api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_OWNER}/${LICENCE_CHECKER_REPO}/downloads/licence-checker
           - chmod +x ~/lc/licence-checker
           - find -regextype posix-egrep -regex "(COPYING|.*\.(py|java|kt|cs|proto|js|ts))$" | xargs -n1 ~/lc/licence-checker 
+    - step: &containerize-step
+        image: hashicorp/packer
+        name: Containerize app
+        script:
+          - version=$(cat ./version.txt)
+          - artifactId=$(cat ./artifactid.txt)
+          - mkdir built-artifacts
+          - curl -L -o built-artifacts/${artifactId}.jar https://$BB_AUTH_STRING@api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_FULL_NAME}/downloads/${artifactId}-${version}.jar
+          - apk add jq
+          - jq --arg VERSION $version '."post-processors"[0][0].tag = $VERSION' container.json > container.json.tmp
+          - mv container.json.tmp container.json
+          - export PACKER_CONFIG_DIR="/opt/atlassian/bitbucketci/agent/build/"
+          - docker login mavenrepo.zepben.com:8083 -u $NEXUS_USERNAME -p $NEXUS_PASSWORD
+          - packer build container.json
+        services:
+          - docker
   caches:
     lc: ~/lc
 
@@ -96,23 +112,7 @@ pipelines:
                 WEBHOOK_URL: $SLACK_WEBHOOK
                 MESSAGE: "<https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/downloads/$artifact|$artifact> is available."
             - fi
-      - step:
-          image: hashicorp/packer
-          name: Containerize app
-          script:
-            - apk add curl xmlstarlet
-            - version=$(cat ./version.txt)
-            - artifactId=$(cat ./artifactid.txt)
-            - mkdir built-artifacts
-            - curl -L -o built-artifacts/${artifactId}.jar https://$BB_AUTH_STRING@api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_FULL_NAME}/downloads/${artifactId}-${version}.jar
-            - apk add jq
-            - jq --arg VERSION $version '."post-processors"[0][0].tag = $VERSION' container.json > container.json.tmp
-            - mv container.json.tmp container.json
-            - export PACKER_CONFIG_DIR="/opt/atlassian/bitbucketci/agent/build/"
-            - docker login mavenrepo.zepben.com:8083 -u $NEXUS_USERNAME -p $NEXUS_PASSWORD
-            - packer build container.json
-          services:
-            - docker
+      - step: *containerize-step
       - step:
           name: Update to next version
           <<: *zep-basic-image
@@ -130,11 +130,14 @@ pipelines:
             - version=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/version")
             - artifactId=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/artifactId")
             - export artifact="${artifactId}-${version}.jar"
+            - echo $version >> version.txt
+            - echo $artifactId >> artifactid.txt
             - curl -v -X POST --user "${BB_AUTH_STRING}" "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_FULL_NAME}/downloads" --form files=@"target/$artifact"
             - pipe: atlassian/slack-notify:0.3.6
               variables:
                 WEBHOOK_URL: $SLACK_WEBHOOK
                 MESSAGE: "<https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/downloads/$artifact|$artifact> is available."
+      - step: *containerize-step
 
     create-LTS-branch:
       - step:
