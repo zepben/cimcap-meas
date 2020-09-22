@@ -7,7 +7,7 @@
             "changes": [
                 "EXPOSE 8080",
                 "EXPOSE 50051",
-                "ENTRYPOINT [\"java\", \"-jar\", \"/app/cimcap.jar\"]"
+                "ENTRYPOINT [\"java\", \"-jar\", \"/app/cimcap-meas.jar\"]"
             ]
         }
     ],
