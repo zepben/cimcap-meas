@@ -137,6 +137,9 @@ pipelines:
               variables:
                 WEBHOOK_URL: $SLACK_WEBHOOK
                 MESSAGE: "<https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/downloads/$artifact|$artifact> is available."
+          artifacts:
+            - version.txt
+            - artifactid.txt
       - step: *containerize-step
 
     create-LTS-branch:
