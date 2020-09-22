@@ -33,6 +33,7 @@ definitions:
         image: hashicorp/packer
         name: Containerize app
         script:
+          - apk add curl
           - version=$(cat ./version.txt)
           - artifactId=$(cat ./artifactid.txt)
           - mkdir built-artifacts
