@@ -73,7 +73,7 @@ private fun createAuthInterceptor(audience: String?, domain: String?) =
     if (audience != null && domain != null) {
         val jwtAuthenticator = JWTAuthenticator(audience, domain)
         val requiredScopes = mapOf(
-            "zepben.protobuf.np.MeasurementProducer" to write_network_scope,
+            "zepben.protobuf.mp.MeasurementProducer" to write_network_scope,
         )
 
         AuthInterceptor(jwtAuthenticator, requiredScopes)

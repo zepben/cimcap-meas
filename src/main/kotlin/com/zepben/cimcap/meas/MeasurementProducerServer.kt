@@ -17,7 +17,9 @@
 
 package com.zepben.cimcap.meas
 
-import com.zepben.cimbend.common.extensions.typeNameAndMRID
+import com.zepben.cimbend.cim.iec61970.base.meas.AccumulatorValue
+import com.zepben.cimbend.cim.iec61970.base.meas.AnalogValue
+import com.zepben.cimbend.cim.iec61970.base.meas.DiscreteValue
 import com.zepben.cimbend.measurement.MeasurementProtoToCim
 import com.zepben.cimbend.measurement.MeasurementService
 import com.zepben.protobuf.mp.*
@@ -32,18 +34,56 @@ class MeasurementProducerServer : MeasurementProducerGrpcKt.MeasurementProducerC
     private var measToCim = MeasurementProtoToCim(measurementService)
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
+    private val LIMIT : Int = 5000000
+
     override suspend fun createAccumulatorValue(request: CreateAccumulatorValueRequest): CreateAccumulatorValueResponse {
-        // TODO: Implement
-        return super.createAccumulatorValue(request)
+        try {
+            logger.info("Received AccumulatorValue: mRID=${request.accumulatorValue.accumulatorMRID}, value=${request.accumulatorValue.value}, " +
+                "timestamp=${request.accumulatorValue.mv.timeStamp}");
+            if (measurementService.num() >= LIMIT)
+            {
+                val toRemove = measurementService.listOf(AccumulatorValue::class).first()
+                measurementService.remove(toRemove);
+            }
+            measToCim.addFromPb(request.accumulatorValue);
+        } catch (e: Exception) {
+            logger.error(e.message, e)
+            throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
+        }
+        return CreateAccumulatorValueResponse.getDefaultInstance()
     }
 
     override suspend fun createAnalogValue(request: CreateAnalogValueRequest): CreateAnalogValueResponse {
-        // TODO: Implement
-        return super.createAnalogValue(request)
+        try {
+            logger.info("Received AnalogValue: mRID=${request.analogValue.analogMRID}, value=${request.analogValue.value}, " +
+                "timestamp=${request.analogValue.mv.timeStamp}");
+            if (measurementService.num() >= LIMIT)
+            {
+                val toRemove = measurementService.listOf(AnalogValue::class).first()
+                measurementService.remove(toRemove);
+            }
+            measToCim.addFromPb(request.analogValue)
+        } catch (e: Exception) {
+            logger.error(e.message, e)
+            throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
+        }
+        return CreateAnalogValueResponse.getDefaultInstance()
     }
 
     override suspend fun createDiscreteValue(request: CreateDiscreteValueRequest): CreateDiscreteValueResponse {
-        // TODO: Implement
-        return super.createDiscreteValue(request)
+        try {
+            logger.info("Received DiscreteValue: mRID=${request.discreteValue.discreteMRID}, value=${request.discreteValue.value}, " +
+                "timestamp=${request.discreteValue.mv.timeStamp}");
+            if (measurementService.num() >= LIMIT)
+            {
+                val toRemove = measurementService.listOf(DiscreteValue::class).first()
+                measurementService.remove(toRemove);
+            }
+            measToCim.addFromPb(request.discreteValue)
+        } catch (e: Exception) {
+            logger.error(e.message, e)
+            throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
+        }
+        return CreateDiscreteValueResponse.getDefaultInstance()
     }
 }

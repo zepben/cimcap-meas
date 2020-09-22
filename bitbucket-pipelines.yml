@@ -21,20 +21,6 @@ definitions:
           - maven
         script:
           - mvn clean test -f pom.xml -Dserver.username=$NEXUS_USERNAME -Dserver.password=$NEXUS_PASSWORD -Dserver.repo.url=$NEXUS_MAVEN_REPO
-    - step: &release-step
-        name: Package and Upload artifact
-        image: zepben/release-pipeline-java
-        caches:
-          - maven
-        script:
-          - mvn clean deploy -f pom.xml -Dserver.username=$NEXUS_USERNAME -Dserver.password=$NEXUS_PASSWORD -Dserver.repo.url=$NEXUS_MAVEN_REPO -Dserver.release.url=$NEXUS_MAVEN_RELEASE -Dserver.snapshot.url=$NEXUS_MAVEN_SNAPSHOT
-          - version=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/version")
-          - artifactId=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/artifactId")
-          - export artifact="${artifactId}-${version}.jar"
-          - pipe: atlassian/slack-notify:0.3.6
-            variables:
-              WEBHOOK_URL: $SLACK_WEBHOOK
-              MESSAGE: "$artifact is available."
     - step: &check-licence-step
         name: Check licence files and headers
         caches:
@@ -50,13 +36,13 @@ pipelines:
   branches:
     master:
       - step: *check-licence-step
-      - step: *release-step
+      - step: *build-test-step
     LTS/*:
       - step: *check-licence-step
-      - step: *release-step
+      - step: *build-test-step
     hotfix/*:
       - step: *check-licence-step
-      - step: *release-step
+      - step: *build-test-step
   pull-requests:
     '**':
       - step: *check-licence-step
@@ -87,7 +73,7 @@ pipelines:
             - git fetch --all
             - git checkout release
             - set +e
-            - mvn deploy -f pom.xml -Dserver.username=$NEXUS_USERNAME -Dserver.password=$NEXUS_PASSWORD -Dserver.repo.url=$NEXUS_MAVEN_REPO -Dserver.release.url=$NEXUS_MAVEN_RELEASE -Dserver.snapshot.url=$NEXUS_MAVEN_SNAPSHOT; ret=$?
+            - mvn clean package -f pom.xml -Dserver.username=$NEXUS_USERNAME -Dserver.password=$NEXUS_PASSWORD -Dserver.repo.url=$NEXUS_MAVEN_REPO -Dserver.release.url=$NEXUS_MAVEN_RELEASE -Dserver.snapshot.url=$NEXUS_MAVEN_SNAPSHOT; ret=$?
             - set -e
             - if [ $ret -ne 0 ]; then
             - git push origin -d release
@@ -103,10 +89,12 @@ pipelines:
             - git tag "v$version"
             - git push --tags
             - export artifact="${artifactId}-${version}.jar"
+            - curl -v -X POST --user "${BB_AUTH_STRING}" "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_FULL_NAME}/downloads" --form files=@"target/$artifact"
+            - curl -v -X DELETE -s -L --user "${BB_AUTH_STRING}" https://api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_FULL_NAME}/downloads/${artifactId}-${version}-SNAPSHOT.jar
             - pipe: atlassian/slack-notify:0.3.6
               variables:
                 WEBHOOK_URL: $SLACK_WEBHOOK
-                MESSAGE: "$artifact is available."
+                MESSAGE: "<https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/downloads/$artifact|$artifact> is available."
             - fi
       - step:
           image: hashicorp/packer
@@ -130,6 +118,23 @@ pipelines:
           <<: *zep-basic-image
           script:
             - java-mvn-update-version --release pom.xml
+
+    create-snapshot-release:
+      - step:
+          name: Package and Upload artifact
+          image: zepben/release-pipeline-java
+          caches:
+            - maven
+          script:
+            - mvn clean package -f pom.xml -Dserver.username=$NEXUS_USERNAME -Dserver.password=$NEXUS_PASSWORD -Dserver.repo.url=$NEXUS_MAVEN_REPO
+            - version=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/version")
+            - artifactId=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/artifactId")
+            - export artifact="${artifactId}-${version}.jar"
+            - curl -v -X POST --user "${BB_AUTH_STRING}" "https://api.bitbucket.org/2.0/repositories/${BITBUCKET_REPO_FULL_NAME}/downloads" --form files=@"target/$artifact"
+            - pipe: atlassian/slack-notify:0.3.6
+              variables:
+                WEBHOOK_URL: $SLACK_WEBHOOK
+                MESSAGE: "<https://bitbucket.org/${BITBUCKET_REPO_FULL_NAME}/downloads/$artifact|$artifact> is available."
 
     create-LTS-branch:
       - step:

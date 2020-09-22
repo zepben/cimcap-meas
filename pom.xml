@@ -3,8 +3,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>com.zepben.maven</groupId>
-        <artifactId>ewb-super-pom</artifactId>
-        <version>1.5.2</version>
+        <artifactId>evolve-super-pom</artifactId>
+        <version>0.1.16</version>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
@@ -14,6 +14,7 @@
 
     <properties>
         <jacoco.coverage>0.7</jacoco.coverage>
+        <mainClass>com.zepben.cimcap.meas.CIMDBServerKt</mainClass>
     </properties>
 
     <dependencies>
@@ -42,7 +43,7 @@
         <dependency>
             <groupId>com.zepben.protobuf</groupId>
             <artifactId>evolve-grpc</artifactId>
-            <version>0.2.0-SNAPSHOT</version>
+            <version>0.2.0</version>
         </dependency>
 
         <!-- Kotlin -->
@@ -95,12 +96,10 @@
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>java-jwt</artifactId>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.auth0</groupId>
             <artifactId>jwks-rsa</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Misc -->
@@ -135,21 +134,16 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.jacoco</groupId>
-                <artifactId>jacoco-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>com/zepben/ewbnetworkroutes/spatial/tiler/mvt/protobuf/**/*.class</exclude>
-                    </excludes>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
