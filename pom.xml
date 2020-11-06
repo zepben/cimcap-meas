@@ -1,49 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.zepben.maven</groupId>
         <artifactId>evolve-super-pom</artifactId>
-        <version>0.1.16</version>
+        <version>0.3.7</version>
     </parent>
 
-    <modelVersion>4.0.0</modelVersion>
     <groupId>com.zepben</groupId>
     <artifactId>cimcap-meas</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 
     <properties>
-        <jacoco.coverage>0.7</jacoco.coverage>
+        <jacoco.coverage>0.0</jacoco.coverage>
         <mainClass>com.zepben.cimcap.meas.CIMDBServerKt</mainClass>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>com.zepben</groupId>
-            <artifactId>annotations</artifactId>
-            <version>1.0.0</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.zepben.evolve</groupId>
             <artifactId>evolve-conn</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
+            <version>0.2.0</version>
         </dependency>
 
         <dependency>
             <groupId>com.zepben</groupId>
             <artifactId>evolve-sdk</artifactId>
-            <version>0.2.0-SNAPSHOT</version>
+            <version>0.2.0</version>
         </dependency>
         <dependency>
             <groupId>com.zepben</groupId>
             <artifactId>id-correlator</artifactId>
-            <version>1.4.0</version>
+            <version>1.5.0</version>
         </dependency>
         <dependency>
             <groupId>com.zepben.protobuf</groupId>
             <artifactId>evolve-grpc</artifactId>
-            <version>0.2.0</version>
+            <version>0.7.0</version>
         </dependency>
 
         <!-- Kotlin -->
@@ -118,9 +112,9 @@
 
         <!-- Test -->
         <dependency>
-            <groupId>com.zepben.test</groupId>
+            <groupId>com.zepben</groupId>
             <artifactId>test-utils</artifactId>
-            <version>2.1.0</version>
+            <version>1.1.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
