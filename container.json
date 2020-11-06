@@ -26,7 +26,7 @@
         [
             {
                 "type": "docker-tag",
-                "repository": "mavenrepo.zepben.com:8083/repository/zepben-docker/cimcap-meas",
+                "repository": "zepben/cimcap-meas",
                 "tag": "1.0.0"
             },
             "docker-push"
@@ -34,7 +34,7 @@
         [
             {
                 "type": "docker-tag",
-                "repository": "mavenrepo.zepben.com:8083/repository/zepben-docker/cimcap-meas",
+                "repository": "zepben/cimcap-meas",
                 "tag": "latest"
             },
             "docker-push"
