@@ -1,0 +1,71 @@
+name: Maven App Snapshot
+
+on: workflow_dispatch
+
+jobs:
+  build-app:
+    runs-on: ubuntu-latest
+    container: zepben/pipeline-java
+    outputs:
+      check_container_config: ${{ steps.check_container_config.outputs.files_exists }}
+    env:
+      GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+      GPG_KEY_PASSWORD: ${{ secrets.GPG_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache maven deps
+        uses: actions/cache@v2
+        with:
+          path: /maven
+          key: maven
+
+      - name: Maven package
+        id: build
+        run: |
+          artifactId=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/artifactId")
+          version=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/version")
+          artifact="${artifactId}-${version}.jar"
+          echo "::set-output name=artifact-path::$(echo target/$artifact)"
+          mvn clean package -f pom.xml -P release -Dgpg.key.id=$GPG_KEY_ID -Dgpg.key.password=$GPG_KEY_PASSWORD
+
+      - uses: actions/upload-artifact@master
+        with:
+          name: build-artifact
+          path: ${{ steps.build.outputs.artifact-path }}
+
+      - name: Check container config existence
+        id: check_container_config
+        uses: andstor/file-existence-action@v1
+        with:
+          files: "container.json"
+
+  build-container:
+    needs: build-app
+    if: needs.build-app.outputs.check_container_config == 'true'
+    runs-on: ubuntu-latest
+    container:  hashicorp/packer
+    env:
+      DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: build-artifact
+          path: built-artifacts
+
+      - name: Create Docker image
+        run: |
+          apk add docker jq xmlstarlet
+          artifactId=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/artifactId")
+          version=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/version")
+          mv built-artifacts/*.jar built-artifacts/${artifactId}.jar
+          jq --arg VERSION $version '."post-processors"[0][0].tag = $VERSION' container.json > container.json.tmp
+          mv container.json.tmp container.json
+          mkdir /build
+          export PACKER_CONFIG_DIR=/build
+          echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USER --password-stdin
+          packer build container.json
+        shell: bash
