@@ -22,30 +22,48 @@ import com.zepben.cimbend.cim.iec61970.base.meas.AnalogValue
 import com.zepben.cimbend.cim.iec61970.base.meas.DiscreteValue
 import com.zepben.cimbend.measurement.MeasurementProtoToCim
 import com.zepben.cimbend.measurement.MeasurementService
+import com.zepben.cimbend.measurement.toCim
 import com.zepben.protobuf.mp.*
 import io.grpc.Status
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.sql.Connection
+import java.sql.Timestamp
+import java.time.Instant
 
-class MeasurementProducerServer : MeasurementProducerGrpcKt.MeasurementProducerCoroutineImplBase() {
+class MeasurementProducerServer(private val connection: Connection) : MeasurementProducerGrpcKt.MeasurementProducerCoroutineImplBase() {
+
+    private val preparedAccumulator = connection.prepareStatement("INSERT INTO accumulator_values(timestamp, write_time, accumulator_mrid, value) VALUES (?, ?, ?, ?)")
+    private val preparedAnalog = connection.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
+    private val preparedDiscrete = connection.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
 
     var measurementService = MeasurementService()
         private set
     private var measToCim = MeasurementProtoToCim(measurementService)
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    private val LIMIT : Int = 5000000
+    private val LIMIT: Int = 5000000
 
+    @ExperimentalUnsignedTypes
     override suspend fun createAccumulatorValue(request: CreateAccumulatorValueRequest): CreateAccumulatorValueResponse {
         try {
-            logger.info("Received AccumulatorValue: mRID=${request.accumulatorValue.accumulatorMRID}, value=${request.accumulatorValue.value}, " +
-                "timestamp=${request.accumulatorValue.mv.timeStamp}");
-            if (measurementService.num() >= LIMIT)
-            {
+            logger.info(
+                "Received AccumulatorValue: mRID=${request.accumulatorValue.accumulatorMRID}, value=${request.accumulatorValue.value}, " +
+                    "timestamp=${request.accumulatorValue.mv.timeStamp}"
+            );
+            if (measurementService.num() >= LIMIT) {
                 val toRemove = measurementService.listOf(AccumulatorValue::class).first()
                 measurementService.remove(toRemove);
             }
+            val av = toCim(request.accumulatorValue)
             measToCim.addFromPb(request.accumulatorValue);
+
+            preparedAccumulator.setTimestamp(1, Timestamp.from(av.timeStamp))
+            preparedAccumulator.setTimestamp(2, Timestamp.from(Instant.now()))
+            preparedAccumulator.setString(3, av.accumulatorMRID)
+            preparedAccumulator.setInt(4, av.value.toInt())
+            assert(preparedAccumulator.executeUpdate() == 1)
+            preparedAccumulator.clearParameters()
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
@@ -55,14 +73,23 @@ class MeasurementProducerServer : MeasurementProducerGrpcKt.MeasurementProducerC
 
     override suspend fun createAnalogValue(request: CreateAnalogValueRequest): CreateAnalogValueResponse {
         try {
-            logger.info("Received AnalogValue: mRID=${request.analogValue.analogMRID}, value=${request.analogValue.value}, " +
-                "timestamp=${request.analogValue.mv.timeStamp}");
-            if (measurementService.num() >= LIMIT)
-            {
+            logger.info(
+                "Received AnalogValue: mRID=${request.analogValue.analogMRID}, value=${request.analogValue.value}, " +
+                    "timestamp=${request.analogValue.mv.timeStamp}"
+            );
+            if (measurementService.num() >= LIMIT) {
                 val toRemove = measurementService.listOf(AnalogValue::class).first()
                 measurementService.remove(toRemove);
             }
+            val av = toCim(request.analogValue)
             measToCim.addFromPb(request.analogValue)
+
+            preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
+            preparedAnalog.setTimestamp(2, Timestamp.from(Instant.now()))
+            preparedAnalog.setString(3, av.analogMRID)
+            preparedAnalog.setDouble(4, av.value)
+            assert(preparedAnalog.executeUpdate() == 1)
+            preparedAnalog.clearParameters()
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
@@ -72,18 +99,34 @@ class MeasurementProducerServer : MeasurementProducerGrpcKt.MeasurementProducerC
 
     override suspend fun createDiscreteValue(request: CreateDiscreteValueRequest): CreateDiscreteValueResponse {
         try {
-            logger.info("Received DiscreteValue: mRID=${request.discreteValue.discreteMRID}, value=${request.discreteValue.value}, " +
-                "timestamp=${request.discreteValue.mv.timeStamp}");
-            if (measurementService.num() >= LIMIT)
-            {
+            logger.info(
+                "Received DiscreteValue: mRID=${request.discreteValue.discreteMRID}, value=${request.discreteValue.value}, " +
+                    "timestamp=${request.discreteValue.mv.timeStamp}"
+            );
+            if (measurementService.num() >= LIMIT) {
                 val toRemove = measurementService.listOf(DiscreteValue::class).first()
                 measurementService.remove(toRemove);
             }
+            val dv = toCim(request.discreteValue)
             measToCim.addFromPb(request.discreteValue)
+
+            preparedDiscrete.setTimestamp(1, Timestamp.from(dv.timeStamp))
+            preparedDiscrete.setTimestamp(2, Timestamp.from(Instant.now()))
+            preparedDiscrete.setString(3, dv.discreteMRID)
+            preparedDiscrete.setInt(4, dv.value)
+            assert(preparedDiscrete.executeUpdate() == 1)
+            preparedDiscrete.clearParameters()
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
         }
         return CreateDiscreteValueResponse.getDefaultInstance()
+    }
+
+    fun close() {
+        preparedAccumulator.close()
+        preparedAnalog.close()
+        preparedDiscrete.close()
+        connection.close()
     }
 }

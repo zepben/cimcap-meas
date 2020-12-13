@@ -22,7 +22,6 @@ import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import com.zepben.auth.JWTAuthenticator
 import com.zepben.auth.grpc.AuthInterceptor
-import com.zepben.cimbend.database.sqlite.DatabaseWriter
 import com.zepben.cimcap.auth.ConfigServer
 import com.zepben.evolve.conn.grpc.GrpcServer
 import com.zepben.evolve.conn.grpc.SslContextConfig
@@ -47,17 +46,49 @@ class CIMDBServer(
     sslContextConfig: SslContextConfig? = null,
     audience: String? = null,
     domain: String? = null,
-    private val databaseFile: String = "measurements.db",
+    databaseConnectionString: String = "jdbc:sqlite:measurements.db",
     private val getConnection: (String) -> Connection = DriverManager::getConnection,
     private val getStatement: (Connection) -> Statement = Connection::createStatement,
     private val getPreparedStatement: (Connection, String) -> PreparedStatement = Connection::prepareStatement,
-    private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(),
 ) : GrpcServer(port, sslContextConfig, createAuthInterceptor(audience, domain)) {
 
+    init {
+        getConnection(databaseConnectionString).use { conn ->
+            if (conn.metaData.usesLocalFiles()) {
+                conn.createStatement().use { statement ->
+                    statement.executeUpdate(
+                        """CREATE TABLE IF NOT EXISTS accumulator_values (
+                    timestamp   TIMESTAMP       NOT NULL,
+                    write_time  TIMESTAMP       NOT NULL,
+                    accumulator_mrid        TEXT            NOT NULL,
+                    value       INTEGER         NOT NULL
+                );"""
+                    )
+
+                    statement.executeUpdate(
+                        """CREATE TABLE IF NOT EXISTS analog_values (
+                    timestamp   TIMESTAMP         NOT NULL,
+                    write_time  TIMESTAMP         NOT NULL,
+                    analog_mrid        TEXT              NOT NULL,
+                    value       DOUBLE PRECISION  NOT NULL
+                );"""
+                    )
+
+                    statement.executeUpdate(
+                        """CREATE TABLE IF NOT EXISTS discrete_values (
+                    timestamp   TIMESTAMP       NOT NULL,
+                    write_time  TIMESTAMP       NOT NULL,
+                    discrete_mrid        TEXT            NOT NULL,
+                    value       INTEGER         NOT NULL
+                );"""
+                    )
+                }
+            }
+        }
+    }
+
+    private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(getConnection(databaseConnectionString))
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
-    private var networkSent = false
-    private var diagramSent = false
-    private var customerSent = false
 
     init {
         serverBuilder.addService(measurementServicer)
@@ -66,6 +97,11 @@ class CIMDBServer(
     override fun start() {
         super.start()
         println("Server started, listening on $port")
+    }
+
+    override fun stop() {
+        measurementServicer.close()
+        super.stop()
     }
 }
 
@@ -82,6 +118,7 @@ private fun createAuthInterceptor(audience: String?, domain: String?) =
     }
 
 class Args(parser: ArgParser) {
+
     val port by parser.storing("-p", "--port", help = "Port for gRPC server") { toInt() }.default(50051)
     val confPort by parser.storing("--conf-port", help = "Port for HTTP auth config server") { toInt() }.default(8080)
     val privateKeyFilePath by parser.storing("-k", "--key", help = "Private key").default(null)
@@ -89,9 +126,8 @@ class Args(parser: ArgParser) {
     val trustCertCollectionFilePath by parser.storing("-a", "--cacert", help = "CA Certificate chain").default(null)
     val tokenAuth by parser.flagging("-t", "--token-auth", help = "Token authentication (Auth0 M2M).").default(false)
     val clientAuth by parser.flagging("--client-auth", help = "Require client authentication.").default(false)
-    val dbFile by parser.storing("-d", "--db", help = "Database output file location").default("cim.db")
-    val audience by parser.storing("--audience", help = "Auth0 Audience for this application")
-        .default("https://evolve-ingestor/")
+    val dbConnStr by parser.storing("-d", "--db", help = "Database JDBC URL connection string.").default("jdbc:sqlite:measurements.db")
+    val audience by parser.storing("--audience", help = "Auth0 Audience for this application").default("https://evolve-ingestor/")
     val domain by parser.storing("--domain", help = "Auth0 domain to use").default("zepben.au.auth0.com")
     val tokenLookup by parser.storing("--token-url", help = "Token fetch URL to use").default("https://zepben.au.auth0.com/oauth/token")
     val algorithm by parser.storing("--alg", help = "Auth0 Algorithm to use").default("RS256")
@@ -118,7 +154,7 @@ fun main(args: Array<String>) {
                         ),
                         if (tokenAuth) audience else null,
                         if (tokenAuth) domain else null,
-                        dbFile
+                        dbConnStr
                     )
                 } catch (e: IllegalArgumentException) {
                     logger.error("Failed to create CIMDBServer. Error was: ${e.message}")
