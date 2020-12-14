@@ -24,12 +24,16 @@ jobs:
           export release_date=$(date +'%d %B %Y')
           /scripts/finalize-version.sh --java --maven pom.xml $FILE 'sed -i -e "s/TBD/$release_date/g"'
         shell: bash
-  build-app:
+  create-release:
     needs: release-checks
     runs-on: ubuntu-latest
     container: zepben/pipeline-java
     outputs:
       check_container_config: ${{ steps.check_container_config.outputs.files_exists }}
+      tag: ${{ steps.build.outputs.tag }}
+      version: ${{ steps.build.outputs.version }}
+      artifact-id: ${{ steps.build.outputs.artifact-id }}
+      source-url: ${{ steps.build.outputs.source-url }}
     env:
       GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
       GPG_KEY_PASSWORD: ${{ secrets.GPG_KEY_PASSWORD }}
@@ -58,7 +62,7 @@ jobs:
       - name: Merge and Tag
         if: steps.build.outcome == 'success'
         id: merge
-        run: | 
+        run: |
           git checkout ${GITHUB_REF/refs\/heads\//}
           git merge release
           git push origin ${GITHUB_REF/refs\/heads\//}
@@ -67,9 +71,13 @@ jobs:
           artifact="${artifactId}-${version}.jar"
           git tag "v$version"
           git push --tags
+          echo "::set-output name=version::$(echo $version)"
           echo "::set-output name=tag::$(echo v$version)"
           echo "::set-output name=artifact::$(echo $artifact)"
+          echo "::set-output name=artifact-id::$(echo $artifactId)"
           echo "::set-output name=artifact-path::$(echo target/$artifact)"
+          source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/archive/${tag}.zip"
+          echo "::set-output name=source-url::$(echo $source_url)"
         shell: bash
 
       - name: Create Release
@@ -116,8 +124,8 @@ jobs:
           files: "container.json"
 
   build-container:
-    needs: build-app
-    if: needs.build-app.outputs.check_container_config == 'true'
+    needs: create-release
+    if: needs.create-release.outputs.check_container_config == 'true'
     runs-on: ubuntu-latest
     container:  hashicorp/packer
     env:
@@ -134,9 +142,7 @@ jobs:
       - name: Create Docker image
         run: |
           apk add docker jq xmlstarlet
-          artifactId=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/artifactId")
-          version=$(xmlstarlet pyx pom.xml | grep -v ^A | xmlstarlet p2x | xmlstarlet sel -t -v "/project/version")
-          mv built-artifacts/*.jar built-artifacts/${artifactId}.jar
+          mv built-artifacts/*.jar built-artifacts/${ARTIFACT_ID}.jar
           jq --arg VERSION $version '."post-processors"[0][0].tag = $VERSION' container.json > container.json.tmp
           mv container.json.tmp container.json
           mkdir /build
@@ -144,6 +150,9 @@ jobs:
           echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USER --password-stdin
           packer build container.json
         shell: bash
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+          ARTIFACT_ID: ${{ needs.create-release.outputs.artifact-id }}
 
   update-version:
     needs: build-container
