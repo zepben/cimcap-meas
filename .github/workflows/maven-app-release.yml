@@ -30,10 +30,10 @@ jobs:
     container: zepben/pipeline-java
     outputs:
       check_container_config: ${{ steps.check_container_config.outputs.files_exists }}
-      tag: ${{ steps.build.outputs.tag }}
-      version: ${{ steps.build.outputs.version }}
-      artifact-id: ${{ steps.build.outputs.artifact-id }}
-      source-url: ${{ steps.build.outputs.source-url }}
+      tag: ${{ steps.merge.outputs.tag }}
+      version: ${{ steps.merge.outputs.version }}
+      artifact-id: ${{ steps.merge.outputs.artifact-id }}
+      source-url: ${{ steps.merge.outputs.source-url }}
     env:
       GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
       GPG_KEY_PASSWORD: ${{ secrets.GPG_KEY_PASSWORD }}
@@ -123,6 +123,27 @@ jobs:
         with:
           files: "container.json"
 
+  update-version:
+    needs: create-release
+    runs-on: ubuntu-latest
+    container: zepben/pipeline-basic:5.0.0
+    env:
+      NEXUS_MAVEN_REPO: ${{ secrets.NEXUS_MAVEN_REPO }}
+      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+      NEXUS_MAVEN_SNAPSHOT: ${{ secrets.NEXUS_MAVEN_SNAPSHOT }}
+      NEXUS_MAVEN_RELEASE: ${{ secrets.NEXUS_MAVEN_RELEASE }}
+      SLACK_NOTIFICATION: YES
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update to next minor version
+        run: |
+          export FILE=docs/release.md
+          export ln=$(cat $FILE | grep -n "### v[0-9]\+.[0-9]\+.[0-9]\+" | head -1 | cut -d':' -f1)
+          /scripts/update-version.sh --java --maven --release pom.xml $FILE 'next_release_version=${version//-SNAPSHOT/} && sed -i "${ln}i \#\#\# v${version//-SNAPSHOT/}\n\n\#\#\#\#\# Breaking Changes\n\* None.\n\n\#\#\#\#\# New Features\n\* None.\n\n\#\#\#\#\# Enhancements\n\* None.\n\n\#\#\#\#\# Fixes\n\* None.\n\n\#\#\#\#\# Notes\n\* None.\n\n\-\-\-\n" $changelog && sed -i "5i \|\[${next_release_version}\]\(\#v${next_release_version//\./}\)\| \`TBD\` \|"'
+        shell: bash
+
   build-container:
     needs: create-release
     if: needs.create-release.outputs.check_container_config == 'true'
@@ -154,24 +175,3 @@ jobs:
           VERSION: ${{ needs.create-release.outputs.version }}
           ARTIFACT_ID: ${{ needs.create-release.outputs.artifact-id }}
 
-  update-version:
-    needs: build-container
-    if: always() && needs.build-container.result == 'skipped' || needs.build-container.result == 'success'
-    runs-on: ubuntu-latest
-    container: zepben/pipeline-basic:5.0.0
-    env:
-      NEXUS_MAVEN_REPO: ${{ secrets.NEXUS_MAVEN_REPO }}
-      NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-      NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-      NEXUS_MAVEN_SNAPSHOT: ${{ secrets.NEXUS_MAVEN_SNAPSHOT }}
-      NEXUS_MAVEN_RELEASE: ${{ secrets.NEXUS_MAVEN_RELEASE }}
-      SLACK_NOTIFICATION: YES
-      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-    steps:
-      - uses: actions/checkout@v2
-      - name: Update to next minor version
-        run: |
-          export FILE=docs/release.md
-          export ln=$(cat $FILE | grep -n "### v[0-9]\+.[0-9]\+.[0-9]\+" | head -1 | cut -d':' -f1)
-          /scripts/update-version.sh --java --maven --release pom.xml $FILE 'next_release_version=${version//-SNAPSHOT/} && sed -i "${ln}i \#\#\# v${version//-SNAPSHOT/}\n\n\#\#\#\#\# Breaking Changes\n\* None.\n\n\#\#\#\#\# New Features\n\* None.\n\n\#\#\#\#\# Enhancements\n\* None.\n\n\#\#\#\#\# Fixes\n\* None.\n\n\#\#\#\#\# Notes\n\* None.\n\n\-\-\-\n" $changelog && sed -i "5i \|\[${next_release_version}\]\(\#v${next_release_version//\./}\)\| \`TBD\` \|"'
-        shell: bash
