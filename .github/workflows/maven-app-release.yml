@@ -143,7 +143,7 @@ jobs:
         run: |
           apk add docker jq xmlstarlet
           mv built-artifacts/*.jar built-artifacts/${ARTIFACT_ID}.jar
-          jq --arg VERSION $version '."post-processors"[0][0].tag = $VERSION' container.json > container.json.tmp
+          jq --arg VERSION $VERSION '."post-processors"[0][0].tag = $VERSION' container.json > container.json.tmp
           mv container.json.tmp container.json
           mkdir /build
           export PACKER_CONFIG_DIR=/build
