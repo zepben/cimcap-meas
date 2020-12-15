@@ -18,6 +18,8 @@
 package com.zepben.cimcap.meas
 
 import ch.qos.logback.classic.Level
+import com.mchange.v2.c3p0.DataSources
+import com.mchange.v2.c3p0.PooledDataSource
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import com.zepben.auth.JWTAuthenticator
@@ -87,7 +89,13 @@ class CIMDBServer(
         }
     }
 
-    private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(getConnection(databaseConnectionString))
+    private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(
+        DataSources.pooledDataSource(
+            DataSources.unpooledDataSource(databaseConnectionString),
+            mapOf("maxStatements" to "200", "maxPoolSize" to 20)
+        ) as PooledDataSource
+    )
+
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
     init {

@@ -17,6 +17,7 @@
 
 package com.zepben.cimcap.meas
 
+import com.mchange.v2.c3p0.PooledDataSource
 import com.zepben.cimbend.cim.iec61970.base.meas.AccumulatorValue
 import com.zepben.cimbend.cim.iec61970.base.meas.AnalogValue
 import com.zepben.cimbend.cim.iec61970.base.meas.DiscreteValue
@@ -27,15 +28,10 @@ import com.zepben.protobuf.mp.*
 import io.grpc.Status
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Instant
 
-class MeasurementProducerServer(private val connection: Connection) : MeasurementProducerGrpcKt.MeasurementProducerCoroutineImplBase() {
-
-    private val preparedAccumulator = connection.prepareStatement("INSERT INTO accumulator_values(timestamp, write_time, accumulator_mrid, value) VALUES (?, ?, ?, ?)")
-    private val preparedAnalog = connection.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
-    private val preparedDiscrete = connection.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
+class MeasurementProducerServer(private val connectionPool: PooledDataSource) : MeasurementProducerGrpcKt.MeasurementProducerCoroutineImplBase() {
 
     var measurementService = MeasurementService()
         private set
@@ -58,12 +54,16 @@ class MeasurementProducerServer(private val connection: Connection) : Measuremen
             val av = toCim(request.accumulatorValue)
             measToCim.addFromPb(request.accumulatorValue);
 
-            preparedAccumulator.setTimestamp(1, Timestamp.from(av.timeStamp))
-            preparedAccumulator.setTimestamp(2, Timestamp.from(Instant.now()))
-            preparedAccumulator.setString(3, av.accumulatorMRID)
-            preparedAccumulator.setInt(4, av.value.toInt())
-            assert(preparedAccumulator.executeUpdate() == 1)
-            preparedAccumulator.clearParameters()
+            connectionPool.connection.use {
+                val preparedAccumulator =
+                    it.prepareStatement("INSERT INTO accumulator_values(timestamp, write_time, accumulator_mrid, value) VALUES (?, ?, ?, ?)")
+                preparedAccumulator.setTimestamp(1, Timestamp.from(av.timeStamp))
+                preparedAccumulator.setTimestamp(2, Timestamp.from(Instant.now()))
+                preparedAccumulator.setString(3, av.accumulatorMRID)
+                preparedAccumulator.setInt(4, av.value.toInt())
+                assert(preparedAccumulator.executeUpdate() == 1)
+                preparedAccumulator.clearParameters()
+            }
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
@@ -83,13 +83,15 @@ class MeasurementProducerServer(private val connection: Connection) : Measuremen
             }
             val av = toCim(request.analogValue)
             measToCim.addFromPb(request.analogValue)
-
-            preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
-            preparedAnalog.setTimestamp(2, Timestamp.from(Instant.now()))
-            preparedAnalog.setString(3, av.analogMRID)
-            preparedAnalog.setDouble(4, av.value)
-            assert(preparedAnalog.executeUpdate() == 1)
-            preparedAnalog.clearParameters()
+            connectionPool.connection.use {
+                val preparedAnalog = it.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
+                preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
+                preparedAnalog.setTimestamp(2, Timestamp.from(Instant.now()))
+                preparedAnalog.setString(3, av.analogMRID)
+                preparedAnalog.setDouble(4, av.value)
+                assert(preparedAnalog.executeUpdate() == 1)
+                preparedAnalog.clearParameters()
+            }
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
@@ -110,12 +112,15 @@ class MeasurementProducerServer(private val connection: Connection) : Measuremen
             val dv = toCim(request.discreteValue)
             measToCim.addFromPb(request.discreteValue)
 
-            preparedDiscrete.setTimestamp(1, Timestamp.from(dv.timeStamp))
-            preparedDiscrete.setTimestamp(2, Timestamp.from(Instant.now()))
-            preparedDiscrete.setString(3, dv.discreteMRID)
-            preparedDiscrete.setInt(4, dv.value)
-            assert(preparedDiscrete.executeUpdate() == 1)
-            preparedDiscrete.clearParameters()
+            connectionPool.connection.use {
+                val preparedDiscrete = it.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
+                preparedDiscrete.setTimestamp(1, Timestamp.from(dv.timeStamp))
+                preparedDiscrete.setTimestamp(2, Timestamp.from(Instant.now()))
+                preparedDiscrete.setString(3, dv.discreteMRID)
+                preparedDiscrete.setInt(4, dv.value)
+                assert(preparedDiscrete.executeUpdate() == 1)
+                preparedDiscrete.clearParameters()
+            }
         } catch (e: Exception) {
             logger.error(e.message, e)
             throw Status.fromCode(Status.Code.UNKNOWN).withDescription(e.message).asException()
@@ -124,9 +129,6 @@ class MeasurementProducerServer(private val connection: Connection) : Measuremen
     }
 
     fun close() {
-        preparedAccumulator.close()
-        preparedAnalog.close()
-        preparedDiscrete.close()
-        connection.close()
+        connectionPool.close()
     }
 }
