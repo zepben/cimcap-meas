@@ -49,6 +49,8 @@ class CIMDBServer(
     audience: String? = null,
     domain: String? = null,
     databaseConnectionString: String = "jdbc:sqlite:measurements.db",
+    connPoolSize: Int = 5,
+    numPoolStatements: Int = 50,
     private val getConnection: (String) -> Connection = DriverManager::getConnection,
     private val getStatement: (Connection) -> Statement = Connection::createStatement,
     private val getPreparedStatement: (Connection, String) -> PreparedStatement = Connection::prepareStatement,
@@ -92,7 +94,7 @@ class CIMDBServer(
     private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(
         DataSources.pooledDataSource(
             DataSources.unpooledDataSource(databaseConnectionString),
-            mapOf("maxStatements" to "200", "maxPoolSize" to 20)
+            mapOf("maxStatements" to numPoolStatements, "maxPoolSize" to connPoolSize)
         ) as PooledDataSource
     )
 
@@ -139,6 +141,8 @@ class Args(parser: ArgParser) {
     val domain by parser.storing("--domain", help = "Auth0 domain to use").default("zepben.au.auth0.com")
     val tokenLookup by parser.storing("--token-url", help = "Token fetch URL to use").default("https://zepben.au.auth0.com/oauth/token")
     val algorithm by parser.storing("--alg", help = "Auth0 Algorithm to use").default("RS256")
+    val connPoolSize by parser.storing("--pool-size", help = "Number of connections in connection pool") { toInt() }.default(5)
+    val numPoolStatements by parser.storing("--pool-statement-size", help = "Number of statements for the connection pool") { toInt() }.default(50)
 
 }
 
@@ -162,7 +166,9 @@ fun main(args: Array<String>) {
                         ),
                         if (tokenAuth) audience else null,
                         if (tokenAuth) domain else null,
-                        dbConnStr
+                        dbConnStr,
+                        connPoolSize,
+                        numPoolStatements
                     )
                 } catch (e: IllegalArgumentException) {
                     logger.error("Failed to create CIMDBServer. Error was: ${e.message}")
