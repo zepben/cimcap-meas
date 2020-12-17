@@ -62,46 +62,84 @@ class CIMDBServer(
                 conn.createStatement().use { statement ->
                     statement.executeUpdate(
                         """CREATE TABLE IF NOT EXISTS accumulator_values (
-                    timestamp   TIMESTAMP       NOT NULL,
-                    write_time  TIMESTAMP       NOT NULL,
-                    accumulator_mrid        TEXT            NOT NULL,
-                    value       INTEGER         NOT NULL
-                );"""
+                               timestamp   TIMESTAMP       NOT NULL,
+                               write_time  TIMESTAMP       NOT NULL,
+                               accumulator_mrid        TEXT            NOT NULL,
+                               value       INTEGER         NOT NULL );
+                            """
                     )
-
                     statement.executeUpdate(
                         """CREATE TABLE IF NOT EXISTS analog_values (
-                    timestamp   TIMESTAMP         NOT NULL,
-                    write_time  TIMESTAMP         NOT NULL,
-                    analog_mrid        TEXT              NOT NULL,
-                    value       DOUBLE PRECISION  NOT NULL
-                );"""
+                               timestamp   TIMESTAMP         NOT NULL,
+                               write_time  TIMESTAMP         NOT NULL,
+                               analog_mrid        TEXT              NOT NULL,
+                               value       DOUBLE PRECISION  NOT NULL );
+                            """
                     )
-
                     statement.executeUpdate(
                         """CREATE TABLE IF NOT EXISTS discrete_values (
-                    timestamp   TIMESTAMP       NOT NULL,
-                    write_time  TIMESTAMP       NOT NULL,
-                    discrete_mrid        TEXT            NOT NULL,
-                    value       INTEGER         NOT NULL
-                );"""
+                               timestamp   TIMESTAMP       NOT NULL,
+                               write_time  TIMESTAMP       NOT NULL,
+                               discrete_mrid        TEXT            NOT NULL,
+                               value       INTEGER         NOT NULL );
+                            """
+                    )
+                    statement.executeUpdate(
+                        """CREATE TABLE IF NOT EXISTS analogs (
+                               mrid        TEXT            PRIMARY KEY,
+                               name        TEXT,
+                               description TEXT,
+                               power_system_resource_mrid   TEXT,
+                               remote_source_mrid   TEXT,
+                               terminal_mrid    TEXT,
+                               unit_symbol      TEXT,
+                               phases           TEXT,
+                               positive_flow_in BOOLEAN );
+                            """
+                    )
+                    statement.executeUpdate(
+                        """CREATE TABLE IF NOT EXISTS discretes (
+                               mrid        TEXT            PRIMARY KEY,
+                               name        TEXT,
+                               description TEXT,
+                               power_system_resource_mrid   TEXT,
+                               remote_source_mrid   TEXT,
+                               terminal_mrid    TEXT,
+                               unit_symbol      TEXT,
+                               phases           TEXT );
+                            """
+                    )
+                    statement.executeUpdate(
+                        """CREATE TABLE IF NOT EXISTS accumulators (
+                               mrid        TEXT            PRIMARY KEY,
+                               name        TEXT,
+                               description TEXT,
+                               power_system_resource_mrid   TEXT,
+                               remote_source_mrid   TEXT,
+                               terminal_mrid    TEXT,
+                               unit_symbol      TEXT,
+                               phases           TEXT );
+                            """
                     )
                 }
             }
         }
     }
 
-    private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(
-        DataSources.pooledDataSource(
-            DataSources.unpooledDataSource(databaseConnectionString),
-            mapOf("maxStatements" to numPoolStatements, "maxPoolSize" to connPoolSize)
-        ) as PooledDataSource
-    )
+    val connectionPool = DataSources.pooledDataSource(
+        DataSources.unpooledDataSource(databaseConnectionString),
+        mapOf("maxStatements" to numPoolStatements, "maxPoolSize" to connPoolSize)
+    ) as PooledDataSource
+    private var measurementServicer: MeasurementProducerServer = MeasurementProducerServer(connectionPool)
+
+    private var networkServicer: NetworkProducerServer = NetworkProducerServer(connectionPool)
 
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
     init {
-        serverBuilder.addService(measurementServicer)
+        serverBuilder
+            .addService(measurementServicer)
+            .addService(networkServicer)
     }
 
     override fun start() {
