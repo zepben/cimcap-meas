@@ -52,7 +52,7 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
                 measurementService.remove(toRemove);
             }
             val av = toCim(request.accumulatorValue)
-            measToCim.addFromPb(request.accumulatorValue);
+            measurementService.add(av)
 
             connectionPool.connection.use {
                 val preparedAccumulator =
@@ -82,7 +82,7 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
                 measurementService.remove(toRemove);
             }
             val av = toCim(request.analogValue)
-            measToCim.addFromPb(request.analogValue)
+            measurementService.add(av)
             connectionPool.connection.use {
                 val preparedAnalog = it.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
                 preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
@@ -110,7 +110,7 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
                 measurementService.remove(toRemove);
             }
             val dv = toCim(request.discreteValue)
-            measToCim.addFromPb(request.discreteValue)
+            measurementService.add(dv)
 
             connectionPool.connection.use {
                 val preparedDiscrete = it.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
