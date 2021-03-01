@@ -33,24 +33,24 @@ import java.time.Instant
 
 class MeasurementProducerServer(private val connectionPool: PooledDataSource) : MeasurementProducerGrpcKt.MeasurementProducerCoroutineImplBase() {
 
-    var measurementService = MeasurementService()
-        private set
-    private var measToCim = MeasurementProtoToCim(measurementService)
+//    var measurementService = MeasurementService()
+//        private set
+//    private var measToCim = MeasurementProtoToCim(measurementService)
     private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    private val LIMIT: Int = 5000000
+//    private val LIMIT: Int = 5000000
 
     private fun addAccumulatorValue(accumulatorValue: com.zepben.protobuf.cim.iec61970.base.meas.AccumulatorValue) {
         logger.info(
             "Received AccumulatorValue: mRID=${accumulatorValue.accumulatorMRID}, value=${accumulatorValue.value}, " +
                 "timestamp=${accumulatorValue.mv.timeStamp}"
         );
-        if (measurementService.num() >= LIMIT) {
-            val toRemove = measurementService.listOf(AccumulatorValue::class).first()
-            measurementService.remove(toRemove);
-        }
+//        if (measurementService.num() >= LIMIT) {
+//            val toRemove = measurementService.listOf(AccumulatorValue::class).first()
+//            measurementService.remove(toRemove);
+//        }
         val av = toCim(accumulatorValue)
-        measurementService.add(av)
+//        measurementService.add(av)
 
         connectionPool.connection.use {
             val preparedAccumulator =
@@ -69,12 +69,12 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
             "Received AnalogValue: mRID=${analogValue.analogMRID}, value=${analogValue.value}, " +
                 "timestamp=${analogValue.mv.timeStamp}"
         );
-        if (measurementService.num() >= LIMIT) {
-            val toRemove = measurementService.listOf(AnalogValue::class).first()
-            measurementService.remove(toRemove);
-        }
+//        if (measurementService.num() >= LIMIT) {
+//            val toRemove = measurementService.listOf(AnalogValue::class).first()
+//            measurementService.remove(toRemove);
+//        }
         val av = toCim(analogValue)
-        measurementService.add(av)
+//        measurementService.add(av)
         connectionPool.connection.use {
             val preparedAnalog = it.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
             preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
@@ -91,12 +91,12 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
             "Received DiscreteValue: mRID=${discreteValue.discreteMRID}, value=${discreteValue.value}, " +
                 "timestamp=${discreteValue.mv.timeStamp}"
         );
-        if (measurementService.num() >= LIMIT) {
-            val toRemove = measurementService.listOf(DiscreteValue::class).first()
-            measurementService.remove(toRemove);
-        }
+//        if (measurementService.num() >= LIMIT) {
+//            val toRemove = measurementService.listOf(DiscreteValue::class).first()
+//            measurementService.remove(toRemove);
+//        }
         val dv = toCim(discreteValue)
-        measurementService.add(dv)
+//        measurementService.add(dv)
 
         connectionPool.connection.use {
             val preparedDiscrete = it.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
