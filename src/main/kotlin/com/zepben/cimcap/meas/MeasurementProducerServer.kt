@@ -102,6 +102,7 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
 //        measurementService.add(dv)
 
         connectionPool.connection.use {
+
             val preparedDiscrete = it.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
             preparedDiscrete.setTimestamp(1, Timestamp.from(dv.timeStamp))
             preparedDiscrete.setTimestamp(2, Timestamp.from(Instant.now()))
@@ -182,25 +183,45 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
     override fun createMeasurementValues(requests: Flow<CreateMeasurementValuesRequest>): Flow<CreateMeasurementValuesResponse> =
         flow {
             requests.collect { mv ->
-                    for (value in mv.analogValuesList) {
+                    connectionPool.connection.use {
                         try {
-                            addAnalogValue(value)
-                        } catch (e: Exception) {
-                            logger.error(e.message, e)
-                        }
-                    }
-                    for (value in mv.accumulatorValuesList) {
-                        try {
-                            addAccumulatorValue(value)
-                        } catch (e: Exception) {
-                            logger.error(e.message, e)
-                        }
-                    }
-                    for (value in mv.discreteValuesList) {
-                        try {
-                            addDiscreteValue(value)
-                        } catch (e: Exception) {
-                            logger.error(e.message, e)
+                            it.autoCommit = false;
+                            for (value in mv.analogValuesList) {
+                                val av = toCim(value)
+                                val preparedAnalog = it.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
+                                preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
+                                preparedAnalog.setTimestamp(2, Timestamp.from(Instant.now()))
+                                preparedAnalog.setString(3, av.analogMRID)
+                                preparedAnalog.setDouble(4, av.value)
+                                assert(preparedAnalog.executeUpdate() == 1)
+                                preparedAnalog.clearParameters()
+                            }
+                            for (value in mv.accumulatorValuesList) {
+                                val av = toCim(value)
+                                val preparedAccumulator =
+                                    it.prepareStatement("INSERT INTO accumulator_values(timestamp, write_time, accumulator_mrid, value) VALUES (?, ?, ?, ?)")
+                                preparedAccumulator.setTimestamp(1, Timestamp.from(av.timeStamp))
+                                preparedAccumulator.setTimestamp(2, Timestamp.from(Instant.now()))
+                                preparedAccumulator.setString(3, av.accumulatorMRID)
+                                preparedAccumulator.setInt(4, av.value.toInt())
+                                assert(preparedAccumulator.executeUpdate() == 1)
+                                preparedAccumulator.clearParameters()
+                            }
+                            for (value in mv.discreteValuesList) {
+                                val dv = toCim(value)
+                                val preparedDiscrete =
+                                    it.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
+                                preparedDiscrete.setTimestamp(1, Timestamp.from(dv.timeStamp))
+                                preparedDiscrete.setTimestamp(2, Timestamp.from(Instant.now()))
+                                preparedDiscrete.setString(3, dv.discreteMRID)
+                                preparedDiscrete.setInt(4, dv.value)
+                                assert(preparedDiscrete.executeUpdate() == 1)
+                                preparedDiscrete.clearParameters()
+                            }
+
+                            it.commit();
+                        } catch(e: Exception) {
+                            it.rollback();
                         }
                     }
                     emit(CreateMeasurementValuesResponse.getDefaultInstance())
