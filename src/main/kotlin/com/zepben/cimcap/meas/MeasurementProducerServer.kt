@@ -26,6 +26,9 @@ import com.zepben.cimbend.measurement.MeasurementService
 import com.zepben.cimbend.measurement.toCim
 import com.zepben.protobuf.mp.*
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.sql.Timestamp
@@ -175,6 +178,35 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
         }
         return CreateDiscreteValuesResponse.getDefaultInstance()
     }
+
+    override fun createMeasurementValues(requests: Flow<CreateMeasurementValuesRequest>): Flow<CreateMeasurementValuesResponse> =
+        flow {
+            requests.collect { mv ->
+                    for (value in mv.analogValuesList) {
+                        try {
+                            addAnalogValue(value)
+                        } catch (e: Exception) {
+                            logger.error(e.message, e)
+                        }
+                    }
+                    for (value in mv.accumulatorValuesList) {
+                        try {
+                            addAccumulatorValue(value)
+                        } catch (e: Exception) {
+                            logger.error(e.message, e)
+                        }
+                    }
+                    for (value in mv.discreteValuesList) {
+                        try {
+                            addDiscreteValue(value)
+                        } catch (e: Exception) {
+                            logger.error(e.message, e)
+                        }
+                    }
+                    emit(CreateMeasurementValuesResponse.getDefaultInstance())
+            }
+        }
+
 
     fun close() {
         connectionPool.close()
