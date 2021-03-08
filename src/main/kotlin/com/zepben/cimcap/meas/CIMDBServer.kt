@@ -27,6 +27,7 @@ import com.zepben.auth.grpc.AuthInterceptor
 import com.zepben.cimcap.auth.ConfigServer
 import com.zepben.evolve.conn.grpc.GrpcServer
 import com.zepben.evolve.conn.grpc.SslContextConfig
+import io.grpc.ServerInterceptor
 import io.grpc.netty.shaded.io.netty.handler.ssl.ClientAuth
 import io.vertx.core.Vertx
 import kotlinx.coroutines.runBlocking
@@ -51,10 +52,11 @@ class CIMDBServer(
     databaseConnectionString: String = "jdbc:sqlite:measurements.db",
     connPoolSize: Int = 5,
     numPoolStatements: Int = 50,
+    maxInboundMessageSize: Int = 0,
     private val getConnection: (String) -> Connection = DriverManager::getConnection,
     private val getStatement: (Connection) -> Statement = Connection::createStatement,
     private val getPreparedStatement: (Connection, String) -> PreparedStatement = Connection::prepareStatement,
-) : GrpcServer(port, sslContextConfig, createAuthInterceptor(audience, domain)) {
+) : GrpcServer(port, maxInboundMessageSize, sslContextConfig, createAuthInterceptor(audience, domain)) {
 
     init {
         getConnection(databaseConnectionString).use { conn ->
@@ -160,9 +162,9 @@ private fun createAuthInterceptor(audience: String?, domain: String?) =
             "zepben.protobuf.mp.MeasurementProducer" to write_network_scope,
         )
 
-        AuthInterceptor(jwtAuthenticator, requiredScopes)
+        listOf<ServerInterceptor>(AuthInterceptor(jwtAuthenticator, requiredScopes))
     } else {
-        null
+        listOf<ServerInterceptor>()
     }
 
 class Args(parser: ArgParser) {
@@ -181,6 +183,7 @@ class Args(parser: ArgParser) {
     val algorithm by parser.storing("--alg", help = "Auth0 Algorithm to use").default("RS256")
     val connPoolSize by parser.storing("--pool-size", help = "Number of connections in connection pool") { toInt() }.default(5)
     val numPoolStatements by parser.storing("--pool-statement-size", help = "Number of statements for the connection pool") { toInt() }.default(50)
+    val maxInboundMessageSize by parser.storing("--maxInboundMessageSize", help = "Maximum inbound message size in bytes"){ toInt() }.default((512 * 1e6).toInt())
 
 }
 
@@ -206,7 +209,8 @@ fun main(args: Array<String>) {
                         if (tokenAuth) domain else null,
                         dbConnStr,
                         connPoolSize,
-                        numPoolStatements
+                        numPoolStatements,
+                        maxInboundMessageSize
                     )
                 } catch (e: IllegalArgumentException) {
                     logger.error("Failed to create CIMDBServer. Error was: ${e.message}")
