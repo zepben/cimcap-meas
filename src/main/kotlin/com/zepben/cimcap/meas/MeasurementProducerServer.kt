@@ -63,14 +63,15 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
     }
 
     private fun insertAccumulatorValue(av: AccumulatorValue, connection: Connection){
-        val preparedAccumulator =
-            connection.prepareStatement("INSERT INTO accumulator_values(timestamp, write_time, accumulator_mrid, value) VALUES (?, ?, ?, ?)")
-        preparedAccumulator.setTimestamp(1, Timestamp.from(av.timeStamp))
-        preparedAccumulator.setTimestamp(2, Timestamp.from(Instant.now()))
-        preparedAccumulator.setString(3, av.accumulatorMRID)
-        preparedAccumulator.setInt(4, av.value.toInt())
-        assert(preparedAccumulator.executeUpdate() == 1)
-        preparedAccumulator.clearParameters()
+        connection.prepareStatement("INSERT INTO accumulator_values(timestamp, write_time, accumulator_mrid, value) VALUES (?, ?, ?, ?)").use {
+            it.setTimestamp(1, Timestamp.from(av.timeStamp))
+            it.setTimestamp(2, Timestamp.from(Instant.now()))
+            it.setString(3, av.accumulatorMRID)
+            it.setInt(4, av.value.toInt())
+            assert(it.executeUpdate() == 1)
+            it.clearParameters()
+        }
+
     }
 
     private fun addAnalogValue(analogValue: com.zepben.protobuf.cim.iec61970.base.meas.AnalogValue) {
@@ -90,13 +91,14 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
     }
 
     private fun insertAnalogValue(av: AnalogValue, connection: Connection) {
-        val preparedAnalog = connection.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)")
-        preparedAnalog.setTimestamp(1, Timestamp.from(av.timeStamp))
-        preparedAnalog.setTimestamp(2, Timestamp.from(Instant.now()))
-        preparedAnalog.setString(3, av.analogMRID)
-        preparedAnalog.setDouble(4, av.value)
-        assert(preparedAnalog.executeUpdate() == 1)
-        preparedAnalog.clearParameters()
+        connection.prepareStatement("INSERT INTO analog_values(timestamp, write_time, analog_mrid, value) VALUES (?, ?, ?, ?)").use {
+            it.setTimestamp(1, Timestamp.from(av.timeStamp))
+            it.setTimestamp(2, Timestamp.from(Instant.now()))
+            it.setString(3, av.analogMRID)
+            it.setDouble(4, av.value)
+            assert(it.executeUpdate() == 1)
+            it.clearParameters()
+        }
     }
 
     private fun addDiscreteValue(discreteValue: com.zepben.protobuf.cim.iec61970.base.meas.DiscreteValue) {
@@ -117,13 +119,14 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
     }
 
     private fun insertDiscreteValue(dv: DiscreteValue, connection: Connection){
-        val preparedDiscrete = connection.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)")
-        preparedDiscrete.setTimestamp(1, Timestamp.from(dv.timeStamp))
-        preparedDiscrete.setTimestamp(2, Timestamp.from(Instant.now()))
-        preparedDiscrete.setString(3, dv.discreteMRID)
-        preparedDiscrete.setInt(4, dv.value)
-        assert(preparedDiscrete.executeUpdate() == 1)
-        preparedDiscrete.clearParameters()
+        connection.prepareStatement("INSERT INTO discrete_values(timestamp, write_time, discrete_mrid, value) VALUES (?, ?, ?, ?)").use {
+            it.setTimestamp(1, Timestamp.from(dv.timeStamp))
+            it.setTimestamp(2, Timestamp.from(Instant.now()))
+            it.setString(3, dv.discreteMRID)
+            it.setInt(4, dv.value)
+            assert(it.executeUpdate() == 1)
+            it.clearParameters()
+        }
     }
 
     @ExperimentalUnsignedTypes
