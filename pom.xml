@@ -9,7 +9,7 @@
 
     <groupId>com.zepben</groupId>
     <artifactId>cimcap-meas</artifactId>
-    <version>0.7.0</version>
+    <version>0.8.0-SNAPSHOT</version>
 
     <properties>
         <jacoco.coverage>0.0</jacoco.coverage>
