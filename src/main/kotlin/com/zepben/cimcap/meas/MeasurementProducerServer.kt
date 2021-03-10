@@ -205,49 +205,59 @@ class MeasurementProducerServer(private val connectionPool: PooledDataSource) : 
                         statement.executeUpdate("PRAGMA journal_mode = OFF")
                         statement.executeUpdate("PRAGMA synchronous = OFF")
                     }
-                    logger.info("Adding ${mv.analogValuesList.size} analog values.");
-                    for (value in mv.analogValuesList) {
-                        try {
-                            val av = toCim(value)
-                            insertAnalogValue(av, it);
-                        } catch (e: Exception) {
-                            val error = ErrorDetail.newBuilder()
-                            error.analogValue = value
-                            error.error = e.message
-                            response.addErrors(error)
-                            logger.error(e.message, e)
+
+                    if (mv.analogValuesCount > 0) {
+                        logger.info("Adding ${mv.analogValuesList.size} analog values.");
+                        for (value in mv.analogValuesList) {
+                            try {
+                                val av = toCim(value)
+                                insertAnalogValue(av, it);
+                            } catch (e: Exception) {
+                                val error = ErrorDetail.newBuilder()
+                                error.analogValue = value
+                                error.error = e.message
+                                response.addErrors(error)
+                                logger.error(e.message, e)
+                            }
                         }
                     }
-                    logger.info("Adding ${mv.accumulatorValuesList.size} accumulator values.");
-                    for (value in mv.accumulatorValuesList) {
-                        try {
-                            val av = toCim(value)
-                            insertAccumulatorValue(av, it)
-                        } catch (e: Exception) {
-                            val error = ErrorDetail.newBuilder()
-                            error.accumulatorValue = value
-                            error.error = e.message
-                            response.addErrors(error)
-                            logger.error(e.message, e)
+                    if (mv.accumulatorValuesCount > 0) {
+                        logger.info("Adding ${mv.accumulatorValuesList.size} accumulator values.");
+                        for (value in mv.accumulatorValuesList) {
+                            try {
+                                val av = toCim(value)
+                                insertAccumulatorValue(av, it)
+                            } catch (e: Exception) {
+                                val error = ErrorDetail.newBuilder()
+                                error.accumulatorValue = value
+                                error.error = e.message
+                                response.addErrors(error)
+                                logger.error(e.message, e)
+                            }
                         }
                     }
-                    logger.info("Adding ${mv.discreteValuesList.size} discrete values.");
-                    for (value in mv.discreteValuesList) {
-                        try {
-                            val dv = toCim(value)
-                            insertDiscreteValue(dv, it)
-                        } catch (e: Exception) {
-                            val error = ErrorDetail.newBuilder()
-                            error.discreteValue = value
-                            error.error = "DB Error"
-                            response.addErrors(error)
-                            logger.error(e.message, e)
+
+                    if (mv.discreteValuesCount > 0) {
+                        logger.info("Adding ${mv.discreteValuesList.size} discrete values.");
+                        for (value in mv.discreteValuesList) {
+                            try {
+                                val dv = toCim(value)
+                                insertDiscreteValue(dv, it)
+                            } catch (e: Exception) {
+                                val error = ErrorDetail.newBuilder()
+                                error.discreteValue = value
+                                error.error = "DB Error"
+                                response.addErrors(error)
+                                logger.error(e.message, e)
+                            }
                         }
                     }
                 }
 
-                if (response.errorsCount > 0)
-                    response.failed = true;
+                if (response.errorsCount > 0) {
+                    logger.info("Response failed with ${response.errorsCount} errors.")
+                    response.failed = true
+                }
 
                 emit(response.build())
             }
